@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>내일 몇 잔 팔릴까 · 날씨 기반 카페 수요 예측</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#F3F5F4; --surface:#FFFFFF; --ink:#1F2A2E; --muted:#5E6B70; --line:#D6DDDB;
+  --ice:#2F7FA8; --hot:#B8641F; --bean:#5A3B2B;
+  --serif:"Gowun Batang","Nanum Myeongjo","AppleMyungjo",serif;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#141A1C; --surface:#1C2427; --ink:#E7ECEA; --muted:#9AA7AB; --line:#2F3A3E;
+    --ice:#7BB8D8; --hot:#E09A5C; --bean:#D8B59E;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141A1C; --surface:#1C2427; --ink:#E7ECEA; --muted:#9AA7AB; --line:#2F3A3E;
+  --ice:#7BB8D8; --hot:#E09A5C; --bean:#D8B59E;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+main{max-width:960px;margin:0 auto;padding:clamp(28px,6vw,72px) clamp(18px,4vw,40px) 64px}
+h1,h2{font-family:var(--serif);font-weight:700;letter-spacing:-.01em;margin:0}
+h2{font-size:clamp(22px,3vw,28px);line-height:1.35;margin-bottom:10px}
+p{margin:0 0 12px;max-width:62ch}
+.muted{color:var(--muted)}
+section{padding-top:56px;border-top:1px solid var(--line);margin-top:56px}
+
+.intro{font-size:15px;color:var(--muted);margin-bottom:22px}
+.sentence{font-size:clamp(26px,4.6vw,44px);line-height:1.55;font-weight:400}
+.chip{font:inherit;color:var(--ice);background:transparent;border:0;border-bottom:2px solid currentColor;padding:0 2px;cursor:pointer;border-radius:0;appearance:none;-webkit-appearance:none}
+.chip option{color:#1F2A2E;background:#fff;font-family:var(--sans);font-size:16px}
+:focus-visible{outline:3px solid var(--ice);outline-offset:3px}
+.tempval{color:var(--hot);border-bottom:2px solid currentColor;min-width:2.2ch;display:inline-block;text-align:right;font-variant-numeric:tabular-nums}
+.controls{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;margin:26px 0 8px;font-size:14px;color:var(--muted)}
+.controls input[type=range]{width:min(320px,62vw);accent-color:var(--hot)}
+.controls label{display:flex;align-items:center;gap:10px}
+
+.board{margin-top:30px}
+.row{display:grid;grid-template-columns:minmax(120px,170px) 1fr 84px;align-items:center;gap:14px;padding:9px 0}
+.row .name{font-size:15px}
+.bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:7px;transition:width .35s ease}
+.row.ice .bar i{background:var(--ice)} .row.hot .bar i{background:var(--hot)}
+.row .num{font-family:var(--serif);font-size:26px;text-align:right;font-variant-numeric:tabular-nums}
+.row .num small{font-family:var(--sans);font-size:13px;color:var(--muted);margin-left:2px}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid var(--ink);margin-top:8px;padding-top:12px}
+.total b{font-family:var(--serif);font-size:30px;font-weight:700}
+
+.memo{margin-top:28px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
+.memo h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.memo ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 18px}
+.memo li{font-size:14px;color:var(--muted)} .memo li b{display:block;font-size:21px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.memo .note{font-size:12.5px;margin:12px 0 0}
+
+.score{display:flex;flex-wrap:wrap;gap:12px 40px;margin:18px 0 24px}
+.score div{font-size:14px;color:var(--muted)} .score b{display:block;font-family:var(--serif);font-size:34px;color:var(--ink);font-weight:700}
+.score div:first-child b{color:var(--ice)}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.tabs button{font:inherit;font-size:14px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}
+.tabs button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
+.chartbox{position:relative;height:300px;width:100%}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:540px;font-size:14px;margin-top:20px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted)}
+td.win{color:var(--ice);font-weight:600}
+
+.imp .row{grid-template-columns:minmax(120px,170px) 1fr}
+.stack{display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted);margin:10px 0 6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+.callout{font-family:var(--serif);font-size:clamp(20px,2.6vw,24px);line-height:1.55;margin:6px 0 18px;max-width:32ch}
+footer{margin-top:64px;font-size:13px;color:var(--muted)}
+footer a{color:inherit}
+@media (max-width:560px){.row{grid-template-columns:104px 1fr 70px;gap:10px}.row .num{font-size:22px}.imp .row{grid-template-columns:104px 1fr}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <p class="intro">날씨 기반 카페 수요 예측 · 노지현 개인 프로젝트</p>
+  <h1 class="sentence">
+    내일은
+    <select class="chip" id="dow" aria-label="요일">
+      <option value="0">월요일</option><option value="1">화요일</option><option value="2">수요일</option>
+      <option value="3">목요일</option><option value="4">금요일</option><option value="5">토요일</option><option value="6">일요일</option>
+    </select>,
+    <span class="tempval" id="tempOut">23</span>°C에
+    <select class="chip" id="rainSel" aria-label="강수">
+      <option value="0">비 소식은 없어요</option><option value="5">비가 조금 와요</option><option value="25">비가 많이 와요</option>
+    </select>
+  </h1>
+  <div class="controls">
+    <label>기온 <input type="range" id="temp" min="-10" max="35" step="1" value="23" aria-label="기온"></label>
+    <label><input type="checkbox" id="holiday"> 공휴일이에요</label>
+  </div>
+
+  <div class="board" id="board" aria-live="polite"></div>
+  <div class="total"><span>예상 판매</span><b id="total">0잔</b></div>
+
+  <div class="memo">
+    <h3>내일 준비할 것</h3>
+    <ul id="memo"></ul>
+    <p class="note muted">여유분 10%를 더한 값이에요. 원두는 1잔에 18g, 우유는 라떼 200ml와 블렌디드 150ml로 가정했어요.</p>
+  </div>
+
+  <section>
+    <h2>모델이 얼마나 맞혔을까</h2>
+    <p class="muted">마지막 90일은 학습에 쓰지 않고 숨겨두었다가 예측해봤어요. 비교 기준은 현장에서 흔히 쓰는 “최근 4주 같은 요일 평균”이에요.</p>
+    <div class="score" id="score"></div>
+    <div class="tabs" id="tabs" role="group" aria-label="메뉴 선택"></div>
+    <div class="chartbox"><canvas id="testChart" aria-label="실제 판매와 예측 비교 차트"></canvas></div>
+    <div class="scroll"><table id="metrics"></table></div>
+  </section>
+
+  <section class="imp">
+    <h2>무엇이 판매를 움직였을까</h2>
+    <p class="muted">요인 하나를 뒤섞었을 때 예측이 얼마나 나빠지는지로 중요도를 쟀어요.</p>
+    <div class="legend" id="impLegend"></div>
+    <div id="imp"></div>
+  </section>
+
+  <section>
+    <h2>기온이 바꾸는 주문</h2>
+    <p class="callout" id="cross"></p>
+    <div class="chartbox"><canvas id="tempChart" aria-label="기온별 아이스와 따뜻한 아메리카노 예측"></canvas></div>
+    <p class="muted" style="margin-top:12px">평일, 비가 오지 않는 날을 기준으로 그린 예측선이에요.</p>
+  </section>
+
+  <section>
+    <h2>데이터와 한계</h2>
+    <p>판매 데이터는 오피스 상권 카페 한 곳을 가정해 만든 2년치 샘플이에요. 날씨도 서울의 계절 기온과 여름 장마를 흉내 낸 값이라, 숫자 자체보다 흐름을 읽는 방법을 보여주는 데 목적이 있어요.</p>
+    <p>기상청 기상자료개방포털의 서울 ASOS 일자료로 날씨를 바꾸고 실제 POS 데이터를 넣으면, 같은 코드로 바로 다시 학습할 수 있어요. 다음에는 상권 유형, 프로모션, 기념일 같은 요인을 더하고 매장별로 모델을 나눠보고 싶어요.</p>
+  </section>
+
+  <footer>Python, scikit-learn, Chart.js로 만들었어요 · <a href="https://github.com/Jihyun-KR">github.com/Jihyun-KR</a></footer>
+</main>
+
+<script>
+const D = /*__DATA__*/null;
+const ORDER = ["아이스 아메리카노","따뜻한 아메리카노","카페 라떼","블렌디드 음료","따뜻한 차"];
+const COLD = new Set(["아이스 아메리카노","블렌디드 음료"]);
+const F = ["기온","강수량","요일","주말·공휴일"];
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = n => Math.round(n).toLocaleString("ko-KR");
+const MAX = Math.max(...ORDER.map(m => Math.max(...Object.values(D.grid[m]))));
+
+const predict = (m, t, r, w, off) => D.grid[m][`${t}|${r}|${w}|${off}`] ?? 0;
+
+function render(){
+  const t = +$("temp").value, r = +$("rainSel").value, w = +$("dow").value;
+  $("holiday").disabled = w >= 5;
+  const off = (w >= 5 || $("holiday").checked) ? 1 : 0;
+  $("tempOut").textContent = t;
+  const vals = ORDER.map(m => predict(m, t, r, w, off));
+  $("board").innerHTML = ORDER.map((m,i) => `
+    <div class="row ${COLD.has(m)?"ice":"hot"}"><span class="name">${m}</span>
+      <div class="bar"><i style="width:${vals[i]/MAX*100}%"></i></div>
+      <span class="num">${fmt(vals[i])}<small>잔</small></span></div>`).join("");
+  $("total").textContent = fmt(vals.reduce((a,b)=>a+b,0)) + "잔";
+  const v = Object.fromEntries(ORDER.map((m,i)=>[m, vals[i]*1.1]));
+  const beans = (v["아이스 아메리카노"]+v["따뜻한 아메리카노"]+v["카페 라떼"])*18/1000;
+  const milk = v["카페 라떼"]*0.2 + v["블렌디드 음료"]*0.15;
+  $("memo").innerHTML = `
+    <li>원두<b>${beans.toFixed(1)}kg</b></li>
+    <li>우유<b>${Math.ceil(milk)}L</b></li>
+    <li>아이스 컵<b>${fmt(Math.ceil(v["아이스 아메리카노"]+v["블렌디드 음료"]))}개</b></li>
+    <li>핫 컵<b>${fmt(Math.ceil(v["따뜻한 아메리카노"]+v["카페 라떼"]+v["따뜻한 차"]))}개</b></li>`;
+}
+
+function opts(){
+  const tick = css("--muted"), font = {family: css("--sans")};
+  return {responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
+    plugins:{legend:{position:"bottom", labels:{color:tick, boxWidth:14, boxHeight:2, font}},
+      tooltip:{callbacks:{label:c => `${c.dataset.label}: ${c.parsed.y}잔`}}},
+    scales:{x:{grid:{display:false}, ticks:{color:tick, maxTicksLimit:9, font}},
+      y:{grid:{color:css("--line")}, ticks:{color:tick, font}, beginAtZero:true}}};
+}
+const line = (label, data, color, extra={}) => ({label, data, borderColor:color, backgroundColor:color, borderWidth:2.5, pointRadius:0, tension:.2, ...extra});
+
+let testChart, tempChart, current = ORDER[0];
+function drawTest(){
+  const s = D.test[current];
+  testChart?.destroy();
+  testChart = new Chart($("testChart"), {type:"line", options:opts(), data:{labels:D.test_dates, datasets:[
+    line("실제 판매", s.actual, css("--ink"), {borderWidth:1.5}),
+    line("모델 예측", s.model, css("--ice")),
+    line("4주 같은 요일 평균", s.base, css("--muted"), {borderWidth:1.5, borderDash:[5,4]}),
+  ]}});
+}
+function drawTemp(){
+  tempChart?.destroy();
+  tempChart = new Chart($("tempChart"), {type:"line", options:opts(), data:{labels:D.temps.map(t=>t+"°"), datasets:[
+    line("아이스 아메리카노", D.temps.map(t => predict("아이스 아메리카노", t, 0, 2, 0)), css("--ice")),
+    line("따뜻한 아메리카노", D.temps.map(t => predict("따뜻한 아메리카노", t, 0, 2, 0)), css("--hot")),
+  ]}});
+}
+function drawImp(){
+  const c = [css("--hot"), css("--ice"), css("--bean"), css("--muted")];
+  $("impLegend").innerHTML = F.map((f,i)=>`<span><i style="background:${c[i]}"></i>${f}</span>`).join("");
+  $("imp").innerHTML = ORDER.map(m => `<div class="row"><span class="name">${m}</span>
+    <div class="stack" role="img" aria-label="${m}: ${F.map(f=>`${f} ${D.importance[m][f]}%`).join(", ")}">
+    ${F.map((f,i)=>`<span title="${f} ${D.importance[m][f]}%" style="width:${D.importance[m][f]}%;background:${c[i]}"></span>`).join("")}</div></div>`).join("");
+}
+const redraw = () => { drawImp(); if (window.Chart) { drawTest(); drawTemp(); } };
+
+function setup(){
+  const S = D.summary;
+  $("score").innerHTML = `
+    <div>예측 오차 감소<b>${S.improve_pct}%</b></div>
+    <div>모델의 하루 평균 오차<b>${S.model_mae}잔</b></div>
+    <div>기존 방식의 하루 평균 오차<b>${S.base_mae}잔</b></div>`;
+  $("tabs").innerHTML = ORDER.map(m=>`<button type="button" aria-pressed="${m===current}" data-m="${m}">${m}</button>`).join("");
+  $("tabs").addEventListener("click", e => {
+    const b = e.target.closest("button"); if(!b) return;
+    current = b.dataset.m;
+    [...$("tabs").children].forEach(x => x.setAttribute("aria-pressed", x===b));
+    drawTest();
+  });
+  $("metrics").innerHTML = `<thead><tr><th>메뉴</th><th>모델 오차율</th><th>기존 방식 오차율</th><th>모델 평균 오차</th><th>기존 방식 평균 오차</th></tr></thead><tbody>` +
+    ORDER.map(m => { const v = D.metrics[m]; return `<tr><td>${m}</td><td class="win">${v.model_mape}%</td><td>${v.base_mape}%</td><td>${v.model_mae}잔</td><td>${v.base_mae}잔</td></tr>`; }).join("") + `</tbody>`;
+  $("cross").textContent = `평일에 기온이 ${D.crossover}°C를 넘으면, 아이스 아메리카노가 따뜻한 아메리카노보다 더 많이 팔릴 거라고 예측했어요.`;
+
+  ["temp","rainSel","dow","holiday"].forEach(id => $(id).addEventListener("input", render));
+  $("dow").value = (new Date().getDay()) % 7;   // 내일의 요일 (월=0 기준)
+  render(); redraw();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+}
+setup();
+</script>
+</body>
+</html>
